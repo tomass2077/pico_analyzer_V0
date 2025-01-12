@@ -144,6 +144,19 @@ namespace ProtocolMaster
                             manager.UpdateScreen();
                         }
                     }
+                    if (menu_addresses[menu.cur_item] == 0x69)
+                    {
+                        I2C_Canvas_Peripheral prei = I2C_Canvas_Peripheral(&driver);
+                        manager.handle_buttons();
+                        while (!manager.BackAction())
+                        {
+                            manager.handle_buttons();
+
+                            manager.gfx->clear();
+                            prei.print_framebuffer(0, 0);
+                            manager.UpdateScreen();
+                        }
+                    }
                 }
                 manager.handle_buttons();
             }
@@ -165,9 +178,10 @@ namespace ProtocolMaster
 
         const char *menuItems[] = {
             "SSD1306",
-            "Knob IO"};
+            "Knob IO",
+            "Canvas"};
 
-        MenuDrawer menu(menuItems, 2);
+        MenuDrawer menu(menuItems, 3);
         while (!manager.BackAction())
         {
             manager.gfx->clear();
@@ -205,6 +219,12 @@ namespace ProtocolMaster
                         prei.draw(0, 0);
                         manager.UpdateScreen();
                     }
+                }
+                else if (menu.cur_item == 2)
+                {
+                    manager.handle_buttons();
+                    I2C_Canvas prei(&driver);
+                    prei.Run();
                 }
 
                 manager.handle_buttons();

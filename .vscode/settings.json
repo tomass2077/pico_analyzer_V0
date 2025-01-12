@@ -61,6 +61,7 @@
         "forward_list": "cpp",
         "any": "cpp",
         "fstream": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "cstdint": "cpp"
     }
 }

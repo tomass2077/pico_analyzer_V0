@@ -1,10 +1,9 @@
 #include "TurboGFX.hpp"
-#include <cstring> // For memset
+#include <cstring>
 #include <complex>
 #include <vector>
 #include "fonst.hpp"
 
-// Adjusted Graphics class methods for 16-bit color
 Graphics::Graphics(uint8_t *buffer, uint16_t width, uint16_t height)
     : buffer(buffer), width(width), height(height)
 {
@@ -353,7 +352,10 @@ void Graphics::drawTriangleAA(float x0, float y0,
 // Monospace text rendering
 void Graphics::drawChar(int x, int y, char c, uint8_t color)
 {
-    uint16_t num = (c - 32) * 16;
+    if (uint8_t(c - 32) > 95)
+        return;
+
+    uint16_t num = uint8_t(c - 32) * 16;
 
     for (uint8_t pos = 0; pos < 16; pos++)
     {

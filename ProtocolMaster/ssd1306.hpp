@@ -269,7 +269,7 @@ namespace ProtocolMaster
         void update()
         {
             static const uint8_t set_column_address[] = {0x21, 0x00, 128 - 1};
-            static const uint8_t set_page_address[] = {0x22, 0x00, (SSD1306_HEIGHT / 8) - 1};
+            static const uint8_t set_page_address[] = {0x22, 0x00, uint8_t((SSD1306_HEIGHT / 8) - 1)};
 
             sendCommand(set_column_address, sizeof(set_column_address));
             sendCommand(set_page_address, sizeof(set_page_address));

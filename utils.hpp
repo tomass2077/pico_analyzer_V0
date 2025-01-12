@@ -64,13 +64,6 @@ public:
     {
         cur_item = 0;
     }
-    MenuDrawer(const char *menuElements, uint8_t elementCount)
-        : menuElements(&menuElements),
-          elementCount(elementCount),
-          smoothItem(0, 10)
-    {
-        cur_item = 0;
-    }
     void jump(uint8_t v)
     {
         smoothItem.TMP_SPEED();
@@ -257,14 +250,22 @@ public:
     void setSlave(uint8_t address, i2c_slave_handler_t aa)
     {
         if (Is_Slave)
+        {
             i2c_slave_deinit(i2c);
+            i2c_deinit(i2c);
+            i2c_init(i2c, 1000 * 1000);
+        }
         i2c_slave_init(i2c, address, aa);
         Is_Slave = true;
     }
     void setMaster()
     {
         if (Is_Slave)
+        {
             i2c_slave_deinit(i2c);
+            i2c_deinit(i2c);
+            i2c_init(i2c, 400 * 1000);
+        }
         Is_Slave = false;
     }
     __force_inline void write_data(uint8_t address, const uint8_t *data, size_t len)

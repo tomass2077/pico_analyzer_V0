@@ -93,6 +93,13 @@ private:
             else
                 long_press_progress = 0;
         }
+        bool IsSuperPress()
+        {
+            if (!hold_indicator)
+                return false;
+
+            return (time_us_64() - press_start_time > 1000000);
+        }
         bool long_press_indicator = false; // True if button is held down
 
         bool hold_indicator = false;

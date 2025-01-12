@@ -11,7 +11,7 @@ namespace ProtocolMaster
         uint8_t transfer_buff[512];
         uint16_t transfer_ptr;
 
-        char *menu_Buffer_ptrs[32];
+        const char *menu_Buffer_ptrs[32];
         char menu_Buffer_data[32 * 20];
 
         uint8_t menu_selected = 0;
@@ -31,7 +31,7 @@ namespace ProtocolMaster
             uint8_t x;
             uint8_t y;
             uint8_t len;
-            // Followed by some uint8_t data
+            // Followed by some uint8_t charecters
         };
         struct Draw_Rect // also for fill
         {
@@ -46,14 +46,14 @@ namespace ProtocolMaster
             uint8_t x;
             uint8_t y;
             uint8_t w;
-            uint16_t offset;
-            uint16_t len;
-            // Followed by some uint8_t data
+            uint8_t offset;
+            uint8_t len;
+            // Followed by some uint8_t data, thats 8bit(from the lut) color
         };
         struct Draw_Menu
         {
             uint8_t defaul_selected;
-            uint16_t len;
+            uint8_t len;
             // Followed by some data that "len" characters, separated into lines by '\0'
         };
         enum Draw_Types
@@ -156,9 +156,21 @@ namespace ProtocolMaster
 
         void Run()
         {
+            manager.gfx->clear();
+            manager.gfx->drawString(120 - 8 * 6, manager.gfx->height / 2 - 16, "Canvas live", LUT_C::IVORY_WHITE);
+            manager.gfx->drawString(120 - 8 * 12, manager.gfx->height / 2, "Waitign for I2C command", LUT_C::IVORY_WHITE);
 
-            while (1)
+            manager.UpdateScreen();
+            sleep_ms(500);
+
+            while (!manager.buttons[0].IsSuperPress() || !manager.buttons[1].IsSuperPress())
             {
+                // flag_redraw = true;
+                // for (uint16_t i = 0; i < 512; i++)
+                //     transfer_buff[i] = rand();
+                // transfer_ptr = 512;
+                // exec_command();
+
                 manager.handle_buttons();
 
                 if (manager.buttons[0].short_press_event)
@@ -180,19 +192,20 @@ namespace ProtocolMaster
                 if (manager.BackAction())
                     flag_exit_action = true;
 
-                if (flag_redraw)
-                {
-                    manager.UpdateScreen();
-                }
-
                 if (menu_active)
                 {
-                    manager.gfx->clear();
+                    // manager.gfx->clear();
                     menu.draw();
+                    menu_selected = menu.cur_item;
                     if (manager.ConfirmAction())
                         menu_exit_state = 0b01000000;
                     else if (manager.BackAction())
                         menu_exit_state = 0b00100000;
+
+                    manager.UpdateScreen();
+                }
+                if (flag_redraw || menu_active)
+                {
                     manager.UpdateScreen();
                 }
             }
@@ -204,9 +217,9 @@ namespace ProtocolMaster
         __force_inline bool SizeCheck(uint16_t *read_ptr, size_t struct_size)
         {
             // Check if adding the structure size would exceed transfer_ptr
-            if ((*read_ptr + struct_size) > transfer_ptr)
+            if (struct_size > 511 || (*read_ptr + struct_size) > transfer_ptr)
             {
-                printf("Size check failed");
+                printf("Size check failed\n");
                 return false;
             }
             return true;
@@ -291,11 +304,14 @@ namespace ProtocolMaster
                             uint16_t x = params->x;
                             uint16_t y = params->y;
                             uint16_t w = params->w;
-                            uint16_t lastPix = params->offset + params->len;
+                            uint8_t lastPix = params->len + params->offset;
 
                             for (uint16_t i = params->offset; i < lastPix; i++)
                             {
-                                manager.gfx->drawPixel(x + (i % w), y + (i / w), colors[i - params->offset]);
+                                uint16_t y_cur = y + (i / w);
+                                if (y_cur > 135)
+                                    break;
+                                manager.gfx->drawPixel(x + (i % w), y_cur, colors[i - params->offset]);
                             }
                         }
                     }
@@ -315,7 +331,7 @@ namespace ProtocolMaster
                         else if (params->len > sizeof(menu_Buffer_data))
                         {
                             menu_active = false;
-                            printf("Tried to activate menu with too much data");
+                            printf("Tried to activate menu with too much data\n");
                         }
                         else if (SizeCheck(&read_ptr, params->len))
                         {
@@ -334,8 +350,15 @@ namespace ProtocolMaster
                             menu_Buffer_ptrs[menu_items++] = &(menu_Buffer_data[0]);
 
                             // Loop through the menu_Buffer_data
+                            uint8_t size_chck = 0;
                             for (uint16_t i = 0; i < params->len - 1; i++)
                             {
+                                size_chck++;
+                                if (size_chck > 20)
+                                {
+                                    menu_Buffer_data[i] = 0;
+                                    size_chck = 0;
+                                }
                                 if (menu_Buffer_data[i] == '\0' && (i + 1) < params->len)
                                 {
                                     if (menu_items < (sizeof(menu_Buffer_ptrs) / sizeof(menu_Buffer_ptrs[0])))
@@ -355,21 +378,54 @@ namespace ProtocolMaster
 
                             // Initialize the menu
                             menu = MenuDrawer(menu_Buffer_ptrs, menu_items);
+                            menu.jump(menu_selected);
                         }
                     }
                     break;
                 }
 
                 default:
-                    printf("Unknown header");
+                    printf("Unknown header: %d\n", to_draw);
                     break;
                 }
             }
-
             transfer_ptr = 0;
         }
         I2C_DRIVER_C *driver;
     };
     I2C_Canvas *I2C_Canvas::instance = nullptr;
+
+    class I2C_Canvas_Peripheral
+    {
+    public:
+        uint16_t SSD1306_HEIGHT = 64;
+        uint8_t address = 0x3C;
+
+        I2C_Canvas_Peripheral(I2C_DRIVER_C *_driver)
+            : driver(_driver), buffer{}
+        {
+            driver->setMaster();
+        }
+
+        void print_framebuffer(uint8_t x, uint8_t y) const
+        {
+            if (manager.buttons[0].long_press_indicator || manager.buttons[0].short_press_event)
+            {
+                uint8_t buff[512];
+                for (uint16_t i = 0; i < 512; i++)
+                    buff[i] = rand();
+                driver->write_data(0x69, buff, 512);
+                manager.gfx->drawString(10, 10, "SENT NOISE", LUT_C::IVORY_WHITE);
+            }
+            else
+            {
+                manager.gfx->drawString(10, 10, "##", LUT_C::BLUSH_PINK);
+            }
+        }
+
+    private:
+        I2C_DRIVER_C *driver;
+        uint8_t buffer[128 * 8];
+    };
 
 }
